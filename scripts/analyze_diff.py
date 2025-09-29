@@ -1,41 +1,33 @@
 import os
-import sys
-import json
 import subprocess
+import json
+import sys
 import time
-from google.cloud import aiplatform
+import requests
 
 # =======================
-# Logging simples
+# Configurações
 # =======================
-def log_info(msg):
-    print(f"[INFO] {msg}")
+GOOGLE_TOKEN = os.getenv("GOOGLE_TOKEN")  # token de acesso Vertex AI
+PROJECT_ID = os.getenv("GOOGLE_PROJECT_ID")
+LOCATION = os.getenv("GOOGLE_LOCATION", "us-central1")  # default
 
-def log_error(msg):
-    print(f"[ERROR] {msg}", file=sys.stderr)
+if not GOOGLE_TOKEN or not PROJECT_ID:
+    raise EnvironmentError(
+        "GOOGLE_TOKEN ou GOOGLE_PROJECT_ID não definidos. Configure os secrets no GitHub."
+    )
 
-# =======================
-# Carregar credenciais
-# =======================
-credentials_json = os.getenv("GOOGLE_CREDENTIALS")
-if not credentials_json:
-    raise EnvironmentError("GOOGLE_CREDENTIALS não definido.")
+ENDPOINT = f"https://{LOCATION}-aiplatform.googleapis.com/v1/projects/{PROJECT_ID}/locations/{LOCATION}/publishers/google/models/text-bison-001:predict"
 
-credentials = json.loads(credentials_json)
-project_id = credentials.get("project_id")
-if not project_id:
-    raise EnvironmentError("Project ID não encontrado nas credenciais.")
-
-aiplatform.init(project=project_id, credentials=credentials)
+MAX_RETRIES = 3
+RETRY_DELAY = 5  # segundos
 
 # =======================
-# Funções principais
+# Funções
 # =======================
 def get_commit_diff():
-    """Captura o diff do último commit ou retorna fallback mock."""
+    """Captura o diff do último commit ou fallback mock"""
     try:
-        # Checa se existe commit anterior
-        subprocess.run(["git", "rev-parse", "HEAD~1"], check=True, stdout=subprocess.DEVNULL)
         diff = subprocess.check_output(["git", "diff", "HEAD~1", "HEAD"], text=True)
         if not diff.strip():
             diff = "No changes detected in the last commit."
@@ -43,36 +35,52 @@ def get_commit_diff():
         diff = "Initial commit or unable to get diff"
     return diff
 
-def analyze_with_gemini(diff, retries=3, delay=5):
-    """Chama Gemini para analisar o diff e retorna Markdown."""
+def analyze_with_gemini(diff):
+    """Chama Gemini via REST API e retorna o relatório em Markdown"""
     prompt = f"""
-            Analise o seguinte diff de código .NET:
+    Analise o seguinte diff de código .NET:
 
-            {diff}
+    {diff}
 
-            Classifique problemas como Crítica, Alta, Média ou Baixa.
-            Retorne o resultado em Markdown.
+    Classifique problemas como Crítica, Alta, Média ou Baixa.
+    Retorne o resultado em Markdown incluindo:
+
+    - Resumo das alterações
+    - Problemas detectados com severidade
+    - Sugestões de melhoria (opcional)
+
+    Análise gerada automaticamente.
     """
-    model = "gemini-1.5"
-    for attempt in range(1, retries+1):
-        try:
-            response = aiplatform.TextGenerationModel(model_name=model).predict(prompt)
-            return response.text
-        except Exception as e:
-            log_error(f"Tentativa {attempt} falhou: {e}")
-            if attempt < retries:
-                log_info(f"Retry em {delay} segundos...")
-                time.sleep(delay)
-    return "Erro ao gerar relatório via Gemini. Usando mock."
 
-def save_report(report, filename="report.md"):
-    """Salva relatório em arquivo Markdown."""
-    try:
-        with open(filename, "w", encoding="utf-8") as f:
-            f.write(report)
-        log_info(f"Relatório salvo em '{filename}'.")
-    except IOError as e:
-        log_error(f"Falha ao salvar relatório: {e}")
+    headers = {
+        "Authorization": f"Bearer {GOOGLE_TOKEN}",
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "instances": [{"content": prompt}],
+        "parameters": {"temperature": 0.2, "maxOutputTokens": 1000}
+    }
+
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            response = requests.post(ENDPOINT, headers=headers, json=data, timeout=30)
+            response.raise_for_status()
+            text = response.json()["predictions"][0]["content"]
+            return text
+        except requests.exceptions.RequestException as e:
+            print(f"[ERROR] Tentativa {attempt} falhou: {e}", file=sys.stderr)
+            if attempt < MAX_RETRIES:
+                print(f"[INFO] Retry em {RETRY_DELAY} segundos...")
+                time.sleep(RETRY_DELAY)
+            else:
+                return "Erro ao gerar relatório via Gemini. Usando mock."
+
+def save_report(report):
+    """Salva o relatório em Markdown"""
+    with open("report.md", "w", encoding="utf-8") as f:
+        f.write(report)
+    print("[INFO] Relatório salvo em 'report.md'.")
 
 # =======================
 # Execução principal
@@ -81,7 +89,6 @@ if __name__ == "__main__":
     diff = get_commit_diff()
 
     if diff in ["Initial commit or unable to get diff", "No changes detected in the last commit."]:
-        log_info("Usando relatório mock para primeiro commit ou commit sem alterações.")
         report = """## Commit Analysis Report
 
         ### ⚠️ Issues
@@ -91,13 +98,14 @@ if __name__ == "__main__":
         - **Low:** Mock issue - Non-descriptive variable name
         """
     else:
-        log_info("Enviando diff para Gemini...")
+        print("[INFO] Enviando diff para Gemini via REST API...")
         report = analyze_with_gemini(diff)
 
     save_report(report)
 
+    # Chama script que cria issue
     try:
         subprocess.run(["python", "scripts/create_issue.py"], check=True)
-        log_info("Script 'create_issue.py' executado com sucesso.")
+        print("[INFO] Script 'create_issue.py' executado com sucesso.")
     except subprocess.CalledProcessError as e:
-        log_error(f"Falha ao executar 'create_issue.py': {e}")
+        print(f"[ERROR] Falha ao executar 'create_issue.py': {e}", file=sys.stderr)
