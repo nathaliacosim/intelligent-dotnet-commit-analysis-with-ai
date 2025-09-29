@@ -1,13 +1,21 @@
 import os
-import requests
 import sys
-import time
+import requests
 from dotenv import load_dotenv
 
 # =======================
 # Carregar .env
 # =======================
 load_dotenv()
+
+# =======================
+# Logging simples
+# =======================
+def log_info(msg):
+    print(f"[INFO] {msg}")
+
+def log_error(msg):
+    print(f"[ERROR] {msg}", file=sys.stderr)
 
 # =======================
 # Configurações
@@ -22,24 +30,13 @@ if not REPO:
 
 API_URL = f"https://api.github.com/repos/{REPO}/issues"
 
+# Mapeamento de severidade para labels
 LABEL_MAPPING = {
     "Critical": "critical",
     "High": "high",
     "Medium": "medium",
     "Low": "low"
 }
-
-MAX_RETRIES = 3
-RETRY_DELAY = 5  # segundos
-
-# =======================
-# Logging centralizado
-# =======================
-def log_info(msg):
-    print(f"[INFO] {msg}")
-
-def log_error(msg):
-    print(f"[ERROR] {msg}", file=sys.stderr)
 
 # =======================
 # Funções
@@ -50,7 +47,7 @@ def extract_labels(report):
     return labels if labels else ["ai-analysis"]
 
 def create_issue(title, body, labels=None):
-    """Cria uma issue no GitHub com retry simples."""
+    """Cria uma issue no GitHub com timeout e tratamento de erros."""
     headers = {
         "Authorization": f"Bearer {GH_TOKEN}",
         "Accept": "application/vnd.github.v3+json"
@@ -59,20 +56,13 @@ def create_issue(title, body, labels=None):
     if labels:
         payload["labels"] = labels
 
-    for attempt in range(1, MAX_RETRIES + 1):
-        try:
-            response = requests.post(API_URL, headers=headers, json=payload, timeout=20)
-            response.raise_for_status()
-            log_info(f"Issue criada com sucesso com labels: {labels} ..")
-            return
-        except requests.exceptions.RequestException as e:
-            log_error(f"Tentativa {attempt} falhou: {e}")
-            if attempt < MAX_RETRIES:
-                log_info(f"Retry em {RETRY_DELAY} segundos...")
-                time.sleep(RETRY_DELAY)
-            else:
-                log_error("Falha ao criar issue após várias tentativas.")
-                sys.exit(1)
+    try:
+        response = requests.post(API_URL, headers=headers, json=payload, timeout=20)
+        response.raise_for_status()
+        log_info(f"Issue criada com sucesso com labels: {labels}")
+    except requests.exceptions.RequestException as e:
+        log_error(f"Falha ao criar issue: {e}")
+        sys.exit(1)
 
 # =======================
 # Execução principal

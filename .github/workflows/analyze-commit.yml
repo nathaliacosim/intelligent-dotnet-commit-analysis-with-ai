@@ -11,26 +11,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout completo do repositório
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
-          fetch-depth: 2  # garante que HEAD~1 exista
+          fetch-depth: 2
 
-      # 2️⃣ Configurar Python
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
-      # 3️⃣ Instalar dependências
       - name: Install dependencies
-        run: pip install requests python-dotenv
+        run: pip install requests python-dotenv google-cloud-aiplatform
 
-      # 4️⃣ Rodar análise
       - name: Run commit analysis
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           GH_TOKEN: ${{ secrets.GH_PAT }}
-        run: |
-          python scripts/analyze_diff.py
+        run: python scripts/analyze_diff.py
