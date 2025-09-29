@@ -26,7 +26,7 @@ def analyze_with_ai(diff):
     - **Critical:** Mock issue - Thread.Sleep used
     - **High:** Mock issue - Missing input validation
     - **Medium:** Mock issue - Outdated comments
-    - **Low:** Mock issue - Non-descriptive variable name
+    - **Low:** Mock issue - Non-descriptive variable name dklasdklaskd
 """
 
 # Uncomment abaixo quando for usar a API real da Gemini
