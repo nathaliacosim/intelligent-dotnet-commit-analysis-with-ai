@@ -87,9 +87,10 @@ def analyze_with_gemini(diff_content):
     """Envia o diff para a API do Gemini e retorna a análise formatada."""
     print("[INFO] Enviando 'diff' para análise do Gemini...")
     
-    # CORREÇÃO: Usando o endpoint do Vertex AI, que é o correto para autenticação com Service Account.
+    # CORREÇÃO: Usando o nome do modelo correto para o endpoint do Vertex AI.
     region = "us-central1"
-    url = f"https://{region}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{region}/publishers/google/models/gemini-1.5-pro-latest:generateContent"
+    model_id = "gemini-1.5-pro" 
+    url = f"https://{region}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{region}/publishers/google/models/{model_id}:generateContent"
 
     # O payload está correto para ambos os endpoints
     payload = {
