@@ -1,83 +1,52 @@
 import os
-import sys
 import requests
-from dotenv import load_dotenv
 
 # =======================
-# Carregar .env
+# Configuração
 # =======================
-load_dotenv()
+GITHUB_TOKEN = os.getenv("GH_TOKEN")
+GITHUB_REPO = os.getenv("GITHUB_REPOSITORY")  # ex: "usuario/repositorio"
+ISSUE_TITLE = "🤖 Commit Analysis Report"
 
-# =======================
-# Logging simples
-# =======================
-def log_info(msg):
-    print(f"[INFO] {msg}")
-
-def log_error(msg):
-    print(f"[ERROR] {msg}", file=sys.stderr)
+if not GITHUB_TOKEN or not GITHUB_REPO:
+    raise EnvironmentError("GH_TOKEN ou GITHUB_REPOSITORY não definidos.")
 
 # =======================
-# Configurações
+# Ler relatório
 # =======================
-GH_TOKEN = os.getenv("GH_TOKEN")
-if not GH_TOKEN:
-    raise EnvironmentError("GH_TOKEN não definido. Configure no .env ou GitHub Actions.")
+with open("report.md", "r", encoding="utf-8") as f:
+    report_md = f.read()
 
-REPO = os.getenv("GITHUB_REPOSITORY")
-if not REPO:
-    raise EnvironmentError("GITHUB_REPOSITORY não definido.")
+# =======================
+# Extrair labels do Markdown
+# =======================
+labels = ["ai-analysis"]  # sempre adiciona essa
+if "**Critical:**" in report_md:
+    labels.append("critical")
+if "**High:**" in report_md:
+    labels.append("high")
+if "**Medium:**" in report_md:
+    labels.append("medium")
+if "**Low:**" in report_md:
+    labels.append("low")
 
-API_URL = f"https://api.github.com/repos/{REPO}/issues"
-
-# Mapeamento de severidade para labels
-LABEL_MAPPING = {
-    "Critical": "critical",
-    "High": "high",
-    "Medium": "medium",
-    "Low": "low"
+# =======================
+# Criar issue
+# =======================
+url = f"https://api.github.com/repos/{GITHUB_REPO}/issues"
+headers = {
+    "Authorization": f"token {GITHUB_TOKEN}",
+    "Accept": "application/vnd.github+json"
+}
+payload = {
+    "title": ISSUE_TITLE,
+    "body": report_md,
+    "labels": labels
 }
 
-# =======================
-# Funções
-# =======================
-def extract_labels(report):
-    """Extrai labels de acordo com severidades encontradas no relatório."""
-    labels = [label for severity, label in LABEL_MAPPING.items() if severity in report]
-    return labels if labels else ["ai-analysis"]
-
-def create_issue(title, body, labels=None):
-    """Cria uma issue no GitHub com timeout e tratamento de erros."""
-    headers = {
-        "Authorization": f"Bearer {GH_TOKEN}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    payload = {"title": title, "body": body}
-    if labels:
-        payload["labels"] = labels
-
-    try:
-        response = requests.post(API_URL, headers=headers, json=payload, timeout=20)
-        response.raise_for_status()
-        log_info(f"Issue criada com sucesso com labels: {labels}")
-    except requests.exceptions.RequestException as e:
-        log_error(f"Falha ao criar issue: {e}")
-        sys.exit(1)
-
-# =======================
-# Execução principal
-# =======================
-if __name__ == "__main__":
-    try:
-        with open("report.md", "r", encoding="utf-8") as f:
-            report = f.read()
-    except FileNotFoundError:
-        log_error("report.md não encontrado. Execute analyze_diff.py primeiro.")
-        sys.exit(1)
-
-    labels = extract_labels(report)
-    create_issue(
-        title="🤖 AI Commit Analysis Report",
-        body=report,
-        labels=labels
-    )
+try:
+    response = requests.post(url, headers=headers, json=payload)
+    response.raise_for_status()
+    print(f"[INFO] Issue criada com sucesso: {response.json().get('html_url')}")
+except Exception as e:
+    print(f"[ERROR] Falha ao criar issue: {e}")
