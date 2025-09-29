@@ -87,8 +87,9 @@ def analyze_with_gemini(diff_content):
     """Envia o diff para a API do Gemini e retorna a análise formatada."""
     print("[INFO] Enviando 'diff' para análise do Gemini...")
     
-    # Endpoint correto para a API Generative Language (Gemini)
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key={ACCESS_TOKEN}"
+    # Endpoint da API Generative Language (Gemini).
+    # A autenticação será feita pelo cabeçalho Authorization, não por um 'key' na URL.
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent"
 
     # Payload no formato correto para o endpoint :generateContent
     payload = {
@@ -106,7 +107,11 @@ def analyze_with_gemini(diff_content):
         }
     }
     
-    headers = {"Content-Type": "application/json"}
+    # Cabeçalhos corretos, incluindo o Token de Acesso para autenticação
+    headers = {
+        "Authorization": f"Bearer {ACCESS_TOKEN}",
+        "Content-Type": "application/json"
+    }
 
     try:
         response = requests.post(url, headers=headers, json=payload, timeout=90)
@@ -170,3 +175,4 @@ if __name__ == "__main__":
         )
     else:
         print("[INFO] Finalizando o script pois não há alterações para analisar.")
+
