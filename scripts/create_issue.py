@@ -63,7 +63,7 @@ def create_issue(title, body, labels=None):
         try:
             response = requests.post(API_URL, headers=headers, json=payload, timeout=20)
             response.raise_for_status()
-            log_info(f"Issue criada com sucesso com labels: {labels} ...")
+            log_info(f"Issue criada com sucesso com labels: {labels} ..")
             return
         except requests.exceptions.RequestException as e:
             log_error(f"Tentativa {attempt} falhou: {e}")
