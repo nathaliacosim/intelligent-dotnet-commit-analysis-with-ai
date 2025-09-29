@@ -25,9 +25,10 @@ except (json.JSONDecodeError, ValueError) as e:
     sys.exit(f"[ERROR] O JSON em GOOGLE_SERVICE_ACCOUNT_JSON é inválido: {e}")
 
 # Cria as credenciais e obtém um token de acesso
+# CORREÇÃO: Usando um escopo mais específico para serviços de IA.
 credentials = service_account.Credentials.from_service_account_info(
     creds_dict,
-    scopes=["https://www.googleapis.com/auth/cloud-platform"]
+    scopes=["https://www.googleapis.com/auth/aiplatform"]
 )
 if not credentials.valid:
     credentials.refresh(Request())
@@ -160,9 +161,9 @@ def create_github_issue(title, body):
         sys.exit(1)
 
 
-# =============================================================================
+# ==============================================================================
 # 3. EXECUÇÃO PRINCIPAL
-# =============================================================================
+# ==============================================================================
 
 if __name__ == "__main__":
     commit_diff = get_commit_diff()
