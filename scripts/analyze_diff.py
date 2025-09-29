@@ -25,10 +25,9 @@ except (json.JSONDecodeError, ValueError) as e:
     sys.exit(f"[ERROR] O JSON em GOOGLE_SERVICE_ACCOUNT_JSON é inválido: {e}")
 
 # Cria as credenciais e obtém um token de acesso
-# CORREÇÃO: Usando um escopo mais específico para serviços de IA.
 credentials = service_account.Credentials.from_service_account_info(
     creds_dict,
-    scopes=["https://www.googleapis.com/auth/aiplatform"]
+    scopes=["https://www.googleapis.com/auth/cloud-platform"]
 )
 if not credentials.valid:
     credentials.refresh(Request())
@@ -88,11 +87,11 @@ def analyze_with_gemini(diff_content):
     """Envia o diff para a API do Gemini e retorna a análise formatada."""
     print("[INFO] Enviando 'diff' para análise do Gemini...")
     
-    # Endpoint da API Generative Language (Gemini).
-    # A autenticação será feita pelo cabeçalho Authorization, não por um 'key' na URL.
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent"
+    # CORREÇÃO: Usando o endpoint do Vertex AI, que é o correto para autenticação com Service Account.
+    region = "us-central1"
+    url = f"https://{region}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{region}/publishers/google/models/gemini-1.5-pro-latest:generateContent"
 
-    # Payload no formato correto para o endpoint :generateContent
+    # O payload está correto para ambos os endpoints
     payload = {
         "contents": [
             {
@@ -108,7 +107,6 @@ def analyze_with_gemini(diff_content):
         }
     }
     
-    # Cabeçalhos corretos, incluindo o Token de Acesso para autenticação
     headers = {
         "Authorization": f"Bearer {ACCESS_TOKEN}",
         "Content-Type": "application/json"
@@ -119,7 +117,6 @@ def analyze_with_gemini(diff_content):
         response.raise_for_status()
         
         result = response.json()
-        # Extrai o texto da resposta, navegando pela estrutura correta
         content = result['candidates'][0]['content']['parts'][0]['text']
         print("[INFO] Análise recebida do Gemini com sucesso.")
         return content
@@ -138,17 +135,16 @@ def create_github_issue(title, body):
     """Cria uma issue no repositório do GitHub com labels baseados no corpo."""
     print("[INFO] Criando issue no GitHub...")
     
-    # Extrai labels com base nas palavras-chave de severidade no relatório
     labels = [label for severity, label in LABEL_MAPPING.items() if severity in body]
     if not labels:
-        labels.append("ai-analysis") # Label padrão se nenhuma severidade for encontrada
+        labels.append("ai-analysis")
 
     api_url = f"https://api.github.com/repos/{REPO}/issues"
     headers = {
         "Authorization": f"Bearer {GH_TOKEN}",
         "Accept": "application/vnd.github.v3+json"
     }
-    payload = {"title": title, "body": body, "labels": list(set(labels))} # Usa set para evitar labels duplicados
+    payload = {"title": title, "body": body, "labels": list(set(labels))}
 
     try:
         response = requests.post(api_url, headers=headers, json=payload, timeout=30)
