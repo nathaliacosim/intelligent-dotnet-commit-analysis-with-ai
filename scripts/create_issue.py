@@ -2,51 +2,52 @@ import os
 import requests
 
 # =======================
-# Configuração
+# Configurações
 # =======================
-GITHUB_TOKEN = os.getenv("GH_TOKEN")
-GITHUB_REPO = os.getenv("GITHUB_REPOSITORY")  # ex: "usuario/repositorio"
-ISSUE_TITLE = "🤖 Commit Analysis Report"
-
-if not GITHUB_TOKEN or not GITHUB_REPO:
+GH_TOKEN = os.getenv("GH_TOKEN")
+GITHUB_REPOSITORY = os.getenv("GITHUB_REPOSITORY")  # exemplo: nathalia/intelligent-dotnet-commit-analysis
+if not GH_TOKEN or not GITHUB_REPOSITORY:
     raise EnvironmentError("GH_TOKEN ou GITHUB_REPOSITORY não definidos.")
 
-# =======================
-# Ler relatório
-# =======================
-with open("report.md", "r", encoding="utf-8") as f:
-    report_md = f.read()
-
-# =======================
-# Extrair labels do Markdown
-# =======================
-labels = ["ai-analysis"]  # sempre adiciona essa
-if "**Critical:**" in report_md:
-    labels.append("critical")
-if "**High:**" in report_md:
-    labels.append("high")
-if "**Medium:**" in report_md:
-    labels.append("medium")
-if "**Low:**" in report_md:
-    labels.append("low")
-
-# =======================
-# Criar issue
-# =======================
-url = f"https://api.github.com/repos/{GITHUB_REPO}/issues"
-headers = {
-    "Authorization": f"token {GITHUB_TOKEN}",
+HEADERS = {
+    "Authorization": f"token {GH_TOKEN}",
     "Accept": "application/vnd.github+json"
 }
-payload = {
-    "title": ISSUE_TITLE,
-    "body": report_md,
-    "labels": labels
-}
 
-try:
-    response = requests.post(url, headers=headers, json=payload)
-    response.raise_for_status()
-    print(f"[INFO] Issue criada com sucesso: {response.json().get('html_url')}")
-except Exception as e:
-    print(f"[ERROR] Falha ao criar issue: {e}")
+REPORT_FILE = "report.md"
+
+# =======================
+# Funções
+# =======================
+def read_report():
+    with open(REPORT_FILE, "r", encoding="utf-8") as f:
+        return f.read()
+
+def extract_labels(report):
+    """Extrai labels baseados em severidade do relatório."""
+    labels = ["ai-analysis"]
+    for severity in ["Critical", "High", "Medium", "Low"]:
+        if f"**{severity}**" in report:
+            labels.append(severity.lower())
+    return labels
+
+def create_issue(title, body, labels):
+    url = f"https://api.github.com/repos/{GITHUB_REPOSITORY}/issues"
+    payload = {
+        "title": title,
+        "body": body,
+        "labels": labels
+    }
+    response = requests.post(url, headers=HEADERS, json=payload)
+    if response.status_code == 201:
+        print("[INFO] Issue criada com sucesso!")
+    else:
+        print(f"[ERROR] Falha ao criar issue: {response.status_code} - {response.text}")
+
+# =======================
+# Execução principal
+# =======================
+if __name__ == "__main__":
+    report = read_report()
+    labels = extract_labels(report)
+    create_issue(title="AI Commit Analysis Report", body=report, labels=labels)

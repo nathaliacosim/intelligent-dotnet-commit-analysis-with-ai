@@ -1,19 +1,28 @@
 import os
 import subprocess
 import json
+import sys
 import requests
 
 # =======================
-# Carregar API Key
+# Configurações
 # =======================
 API_KEY = os.getenv("AI_STUDIO_API_KEY")
 if not API_KEY:
     raise EnvironmentError("AI_STUDIO_API_KEY não definido.")
 
+HEADERS = {
+    "Authorization": f"Bearer {API_KEY}",
+    "Content-Type": "application/json"
+}
+
+MODEL = "gemini-1.5"  # modelo Gemini disponível
+
 # =======================
 # Funções
 # =======================
 def get_commit_diff():
+    """Captura o diff do último commit."""
     try:
         diff = subprocess.check_output(["git", "diff", "HEAD~1", "HEAD"], text=True)
         if not diff.strip():
@@ -23,12 +32,8 @@ def get_commit_diff():
     return diff
 
 def analyze_with_gemini(diff):
-    """Chama Gemini via REST API e retorna Markdown"""
-    url = "https://generativelanguage.googleapis.com/v1beta2/models/gemini-1.5:generateMessage"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {API_KEY}"
-    }
+    """Chama Gemini REST API para analisar o diff."""
+    url = f"https://generativelanguage.googleapis.com/v1beta2/models/{MODEL}:generateMessage"
     prompt = f"""
 Analise o seguinte diff de código .NET:
 
@@ -39,18 +44,19 @@ Retorne o resultado em Markdown.
 """
     payload = {
         "prompt": {
-            "text": prompt
+            "messages": [{"content": prompt, "role": "user"}]
         },
-        "temperature": 0.2
+        "temperature": 0.2,
+        "candidate_count": 1,
     }
+
     try:
-        resp = requests.post(url, headers=headers, json=payload)
-        resp.raise_for_status()
-        result = resp.json()
-        # O texto gerado normalmente fica em result['candidates'][0]['content']
-        return result['candidates'][0]['content']
+        response = requests.post(url, headers=HEADERS, json=payload, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+        return data["candidates"][0]["content"]
     except Exception as e:
-        print(f"[ERROR] Falha ao chamar Gemini REST API: {e}")
+        print(f"[ERROR] Falha ao chamar Gemini REST API: {e}", file=sys.stderr)
         return "Erro ao gerar relatório via Gemini. Usando mock."
 
 def save_report(report):
@@ -79,5 +85,5 @@ if __name__ == "__main__":
 
     save_report(report)
 
-    # Chama script que cria issue
+    # Chama criação de issue
     subprocess.run(["python", "scripts/create_issue.py"], check=True)
