@@ -1,4 +1,4 @@
-# 📄 Technical Documentation — Intelligent .NET Commit Analysis with AI
+# 📄 Technical Documentation — Intelligent .NET Commit Analysis with AI (OpenAI)
 
 ## 1. 🎯 Overview
 
@@ -6,10 +6,10 @@ This project implements an **automated agent** for intelligent commit analysis i
 
 Whenever a commit is detected, the agent:
 
-1. Captures the code *diff*.
-2. Sends it to an **AI service (Gemini Mini)** for analysis.
-3. Receives a report with potential issues.
-4. Automatically creates an *issue* in the repository with the results.
+1. Captures the **code diff**.
+2. Sends it to **OpenAI (gpt-3.5-turbo)** for analysis.
+3. Receives a **report with potential issues**.
+4. Automatically creates a **GitHub issue** with severity labels (`Critical`, `High`, `Medium`, `Low`).
 
 The goal is to **improve code quality** and **reduce production failures** by embedding AI into the development workflow.
 
@@ -18,17 +18,17 @@ The goal is to **improve code quality** and **reduce production failures** by em
 ## 2. 🧱 System Architecture
 
 ```plaintext
-GitHub Commit → GitHub Actions → Capture Diff → AI (Gemini Mini) → Report → Create Issue
+GitHub Commit → GitHub Actions → Capture Diff → AI (OpenAI) → Report → Create Issue
 ```
 
 ### Main Components
 
-| Component           | Responsibility                                            |
-| ------------------- | --------------------------------------------------------- |
-| **GitHub Actions**  | Detects commits and triggers the analysis pipeline        |
-| **Diff Script**     | Extracts changes using `git diff` or GitHub API           |
-| **AI Integration**  | Sends the diff to Gemini Mini API and receives the report |
-| **Issue Generator** | Creates a GitHub issue with the analysis results          |
+| Component           | Responsibility                                       |
+| ------------------- | ---------------------------------------------------- |
+| **GitHub Actions**  | Detects commits and triggers the analysis pipeline   |
+| **Diff Script**     | Extracts changes using `git diff` or GitHub API      |
+| **AI Integration**  | Sends the diff to OpenAI API and receives the report |
+| **Issue Generator** | Creates a GitHub issue with the analysis results     |
 
 ---
 
@@ -36,8 +36,8 @@ GitHub Commit → GitHub Actions → Capture Diff → AI (Gemini Mini) → Repor
 
 * **GitHub Actions** → CI/CD automation
 * **.NET (C#)** → Base repository language
-* **Gemini Mini API** → Intelligent code analysis
-* **Python / Node.js** → Integration scripts (flexible choice)
+* **OpenAI API** → Intelligent code analysis
+* **Python / Node.js** → Integration scripts
 * **GitHub REST API** → Automated issue creation
 * **GitHub Secrets** → Secure storage for API keys and tokens
 
@@ -51,10 +51,11 @@ GitHub Commit → GitHub Actions → Capture Diff → AI (Gemini Mini) → Repor
     └── analyze-commit.yml    # GitHub Actions workflow
 
 scripts/
-├── analyze_diff.py (or .js)  # Captures diff and calls AI
-└── create_issue.py (or .js)  # Creates GitHub issue
+├── analyze_diff.py           # Captures diff and calls OpenAI
+└── create_issue.py           # Creates GitHub issue
 
 README.md
+.env.example                   # Template for environment variables
 ```
 
 ---
@@ -76,54 +77,69 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 2  # ensures HEAD~1 exists
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install requests  # or npm install
+        run: pip install requests python-dotenv
 
       - name: Run analysis
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: python scripts/analyze_diff.py
 ```
 
 ### 5.2. Analysis Script (`analyze_diff.py`)
 
-* Captures the commit diff.
-* Prepares the analysis prompt.
-* Sends it to the AI API.
-* Receives a structured report.
+* Extracts the commit diff safely (`git rev-parse HEAD~1` fallback).
+* Prepares the prompt for OpenAI.
+* Sends the diff for AI analysis (with timeout & retry).
+* Saves a Markdown report (`report.md`).
 
 ### 5.3. Issue Creation Script (`create_issue.py`)
 
-* Formats the report into **Markdown**.
-* Creates a GitHub issue.
-* Adds severity labels (`critical`, `high`, `medium`, `low`).
+* Reads the Markdown report.
+* Extracts labels from severity levels.
+* Creates a GitHub issue via API with retry and logging.
 
 ---
 
 ## 6. 🧠 AI Prompt
 
 ```plaintext
-Analyze the following .NET code diff.  
-Classify potential issues as: Critical, High, Medium, Low.  
-Briefly explain each one.  
-Return the result in structured Markdown format.  
+Analyze the following .NET code diff.
+Classify potential issues as: Critical, High, Medium, Low.
+Briefly explain each one.
+Return the result in Markdown format including:
+
+- Summary of changes
+- Detected issues with severity
+- Optional improvement suggestions
+
+Automatically generated by AI.
 ```
 
 ---
 
 ## 7. 🔐 Secrets Configuration
 
-In GitHub repository settings, configure the following **secrets**:
+In GitHub repository settings, configure:
 
-* `GEMINI_API_KEY` → Gemini Mini API access key
-* `GH_TOKEN` → GitHub token with issue creation permissions
+* `OPENAI_API_KEY` → OpenAI API key (free tier available)
+* `GH_PAT` → GitHub token with **repo:issues** permission
 
 ---
 
 ## 8. 📋 Example of Generated Issue
 
 ```markdown
-## Commit Analysis Report
-
+## 🔍 Commit Analysis Report
 **Commit:** abc123  
 **Branch:** main  
 **Author:** @nathalia  
@@ -134,29 +150,25 @@ In GitHub repository settings, configure the following **secrets**:
 - **Medium:** Outdated comments  
 - **Low:** Non-descriptive variable name  
 
-_Automatically generated by AI._ 🤖
+**Suggestions for improvement:** (optional)
+
+_Automatically generated by OpenAI AI._ 🤖
 ```
 
 ---
 
 ## 9. ✅ Testing & Validation
 
-* Simulated commits with intentional issues
-* Verification of correct issue creation
-* Iterative tuning of the AI prompt to improve accuracy
+* Test with simulated commits containing known issues.
+* Verify issue creation with correct labels.
+* Iteratively adjust AI prompt for accuracy.
 
 ---
 
 ## 10. 🚀 Future Improvements
 
-* **Multi-language support** beyond .NET
-* **Pull Request analysis** before merge (high priority)
-* **Automated fix suggestions**
-* **Integration with quality tools** (SonarQube, CodeQL, etc.)
-* **Observability** → Monitoring AI response times and error rates
-
----
-
-👉 Now your project looks **portfolio-ready** in English, easy to understand for recruiters, collaborators, or even international open-source contributors.
-
-Quer que eu também faça uma versão **curtinha e executiva** (1 página estilo "project summary") para você colocar no início do repositório como README principal?
+* Multi-language support beyond .NET
+* Pull Request analysis before merge
+* Automated fix suggestions
+* Integration with quality tools (SonarQube, CodeQL)
+* Observability → Monitoring AI response times and error rates

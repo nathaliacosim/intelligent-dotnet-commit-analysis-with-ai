@@ -11,20 +11,26 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Checkout completo do repositório
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 2  # garante que HEAD~1 exista
 
+      # 2️⃣ Configurar Python
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
+      # 3️⃣ Instalar dependências
       - name: Install dependencies
-        run: pip install requests
+        run: pip install requests python-dotenv
 
-      - name: Run analysis
+      # 4️⃣ Rodar análise
+      - name: Run commit analysis
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           python scripts/analyze_diff.py
